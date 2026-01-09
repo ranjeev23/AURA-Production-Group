@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { ScrollablePage, ScrollablePageHeader, ScrollablePageContent } from "@/components/layout/ScrollablePage";
-import { LogOut, User, Trophy, Hash, Medal, Activity, Zap, Plus, ChevronRight, MapPin, CalendarDays, Users } from "lucide-react";
+import { LogOut, User, Trophy, Hash, Activity, Zap, Plus, ChevronRight, MapPin, CalendarDays, Users } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -462,7 +462,26 @@ export default function ProfilePage() {
                     <CalendarDays className="size-4 text-primary" />
                     <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Scheduled Tournaments</h4>
                   </div>
-                  {scheduledTournaments.map((tournament) => {
+                  {[...scheduledTournaments].sort((a, b) => {
+                    // Helper function to determine if tournament is live
+                    const isLive = (tournament) => {
+                      const startDate = tournament.start_date ? new Date(tournament.start_date) : null;
+                      const endDate = tournament.end_date ? new Date(tournament.end_date) : null;
+                      return startDate && endDate && now >= startDate && now <= endDate;
+                    };
+                    
+                    const aIsLive = isLive(a);
+                    const bIsLive = isLive(b);
+                    
+                    // Live tournaments first
+                    if (aIsLive && !bIsLive) return -1;
+                    if (!aIsLive && bIsLive) return 1;
+                    
+                    // If both are same status, sort by start date (earliest first)
+                    const aStart = a.start_date ? new Date(a.start_date) : new Date(0);
+                    const bStart = b.start_date ? new Date(b.start_date) : new Date(0);
+                    return aStart - bStart;
+                  }).map((tournament) => {
                     const startDate = tournament.start_date ? new Date(tournament.start_date) : null;
                     const endDate = tournament.end_date ? new Date(tournament.end_date) : null;
                     let status = 'upcoming';

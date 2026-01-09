@@ -111,6 +111,7 @@ export default function TournamentDetailsPage() {
     registered_count,
     registered_players,
     image_url,
+    metadata,
   } = tournament;
 
   const category =
@@ -123,6 +124,13 @@ export default function TournamentDetailsPage() {
   const registeredCount = registered_count || 0;
   const progress = capacity > 0 ? (registeredCount / capacity) * 100 : 0;
   const isFull = capacity > 0 && registeredCount >= capacity;
+  
+  // Check if tournament has started (start_time has passed or any round has begun)
+  const startTime = new Date(start_date);
+  const now = new Date();
+  const hasStarted = startTime <= now;
+  const hasRoundBegun = metadata?.current_round > 0 || metadata?.stage !== 'registration';
+  const tournamentStarted = hasStarted || hasRoundBegun;
 
   return (
     <ScrollablePage className="h-dvh bg-background">
@@ -340,23 +348,19 @@ export default function TournamentDetailsPage() {
               <Button
                 className="w-full h-14 rounded-xl shadow-xl shadow-primary/25 text-lg font-black uppercase tracking-wide"
                 onClick={() => {
-                  const startTime = new Date(start_date);
-                  const now = new Date();
                   const isRegistered = tournament?.registered || (isDoubles && teamComplete);
 
-                  if (isRegistered || startTime <= now) {
+                  if (isRegistered || tournamentStarted) {
                     router.push(`/tournaments/${params.id}/stats`);
                   } else if (!isFull) {
                     setIsDrawerOpen(true);
                   }
                 }}
-                disabled={registrationMutation.isPending || isFull}
+                disabled={registrationMutation.isPending || (isFull && !tournamentStarted)}
               >
-                {isFull
+                {isFull && !tournamentStarted
                   ? "Tournament Full"
-                  : tournament?.registered || (isDoubles && teamComplete)
-                  ? "View Pairings & Leaderboard"
-                  : new Date(start_date) <= new Date()
+                  : tournamentStarted || tournament?.registered || (isDoubles && teamComplete)
                   ? "View Pairings & Leaderboard"
                   : "Book Your Spot"}
               </Button>
