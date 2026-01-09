@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function TournamentStatsHeader({ tournamentName, category }) {
@@ -19,7 +19,7 @@ export function TournamentStatsHeader({ tournamentName, category }) {
             <span>{category}</span>
           </div>
         </div>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="invisible">
           <Maximize2 className="w-5 h-5" />
         </Button>
       </div>

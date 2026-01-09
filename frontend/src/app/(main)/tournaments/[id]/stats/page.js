@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, Users, Crown, Medal, ChevronRight, Zap, Target, Award } from "lucide-react";
 
 // Group Standings Component for Group+Knockout format
-function GroupStandings({ standings, groups, teams, engineInfo, matches, selectedRound }) {
+function GroupStandings({ standings, engineInfo, matches, selectedRound }) {
   // Determine if we're in knockout stage
   const isKnockoutStage = engineInfo?.stage === 'knockout' || engineInfo?.stage === 'complete';
 
@@ -198,7 +198,7 @@ function GroupStandings({ standings, groups, teams, engineInfo, matches, selecte
                 const isFinal = round === 'F';
 
                 return (
-                  <Card key={round} className={`overflow-hidden ${isFinal ? 'border-primary/50 bg-primary/5' : ''}`}>
+                  <Card key={round} className={`py-0 gap-0 overflow-hidden ${isFinal ? 'border-primary/50 bg-primary/5' : ''}`}>
                     <CardHeader className={`py-2 px-3 ${isFinal ? 'bg-primary/10' : 'bg-muted/30'}`}>
                       <CardTitle className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
                         {isFinal && <Trophy className="size-3 text-yellow-500" />}
@@ -267,8 +267,8 @@ function GroupStandings({ standings, groups, teams, engineInfo, matches, selecte
             const groupStandings = standings[groupKey] || [];
 
             return (
-              <Card key={groupKey} className="overflow-hidden">
-                <CardHeader className="py-2 px-3 bg-muted/30">
+              <Card key={groupKey} className="py-0 gap-0 overflow-hidden">
+                <CardHeader className="pt-4 px-3 bg-muted/30 ">
                   <CardTitle className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
                     <Trophy className="size-3" />
                     {groupKey}
@@ -444,7 +444,7 @@ function MatchesList({ matches, stage, selectedRound, tournamentId, onMatchClick
         return (
           <Card
             key={matchId}
-            className={`overflow-hidden cursor-pointer hover:border-primary/50 transition-all group ${isLive ? 'border-red-500/30' : ''
+            className={`overflow-hidden py-0 cursor-pointer hover:border-primary/50 transition-all group ${isLive ? 'border-red-500/30' : ''
               }`}
             onClick={() => onMatchClick && onMatchClick(match.tournament_id || tournamentId, match.round, matchId)}
           >
@@ -758,8 +758,8 @@ export default function TournamentStatsPage() {
             />
             {/* Round Navigation for matches */}
             {availableMatchRounds.length > 0 && (
-              <div className="px-4 pb-3">
-                <div className="flex gap-2 overflow-x-auto scrollbar-none">
+              <div className="px-4">
+                <div className="flex gap-2 overflow-x-auto scrollbar-none py-3">
                   <Button
                     variant={selectedMatchRound === null ? "default" : "outline"}
                     size="sm"
@@ -794,14 +794,10 @@ export default function TournamentStatsPage() {
         </ScrollablePageHeader>
 
         <ScrollablePageContent className="pb-24 pt-4">
-          {/* Abstract Background Shapes */}
-          <div className="absolute top-0 inset-x-0 h-48 bg-linear-to-b from-brand-blue/10 to-transparent skew-y-3 origin-top-left scale-110 pointer-events-none -z-10" />
-          <div className="absolute top-0 right-0 size-64 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none -z-10" />
-
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
             <div className="px-4 mb-4">
-              <TabsList className="w-full h-12 p-1.5 bg-muted/30 rounded-xl grid grid-cols-2">
+              <TabsList className="w-full h-12 p-1.5 bg-muted/30 border rounded-xl grid grid-cols-2">
                 <TabsTrigger
                   value="matches"
                   className="rounded-lg text-xs font-bold uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
