@@ -52,7 +52,7 @@ export function ScrollablePageHeader({ children, className }) {
  */
 export function ScrollablePageContent({ children, className }) {
   return (
-    <div className={cn("flex-1 overflow-y-auto", className)}>
+    <div className={cn("flex-1 overflow-y-auto overflow-x-hidden", className)}>
       {children}
     </div>
   );

@@ -54,15 +54,29 @@ export async function getTeamsForTournament(tournamentId: number, strictMode: bo
         teamIds = [...new Set(groupTeamIds)];
     }
 
-    // Get teams directly from teams table using tournament_id
+    // Get teams directly from teams table using tournament_id (if column exists)
     const { data: registeredTeams, error } = await supabase
-        .from('teams')
-        .select('team_id')
-        .eq('tournament_id', tournamentId);
+      .from('teams')
+      .select('team_id')
+      .eq('tournament_id', tournamentId);
 
     if (registeredTeams && registeredTeams.length > 0) {
         const registeredTeamIds = registeredTeams.map(t => t.team_id);
         teamIds = [...new Set([...teamIds, ...registeredTeamIds])];
+    }
+
+    // Fallback: Get teams from tournament_invites if no teams found yet
+    if (teamIds.length === 0) {
+        const { data: invites, error: invitesError } = await supabase
+            .from('tournament_invites')
+            .select('team_id')
+            .eq('tournament_id', tournamentId)
+            .not('team_id', 'is', null);
+
+        if (invites && invites.length > 0) {
+            const inviteTeamIds = invites.map(inv => inv.team_id).filter((id, index, self) => self.indexOf(id) === index);
+            teamIds = [...new Set(inviteTeamIds)];
+        }
     }
 
     if (teamIds.length === 0) {
