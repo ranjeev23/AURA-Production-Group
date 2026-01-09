@@ -21,7 +21,7 @@ interface Registration {
 
 /**
  * Creates a group mixed doubles tournament with 14 players
- * - First player becomes host (not in any team)
+ * - First player becomes host and referee (not in any team)
  * - Second player becomes referee (not in any team)
  * - Remaining 12 players form 6 teams (2 players each)
  * - All teams are automatically registered
@@ -225,20 +225,26 @@ async function createGroupMensDoublesTournament() {
 
     console.log(`✅ Created tournament: ${tournament.name} (ID: ${tournament.id})\n`);
 
-    // Step 7: Add referee
-    console.log('⚖️  Adding referee...');
+    // Step 7: Add referees (host and second player)
+    console.log('⚖️  Adding referees...');
     const { error: refereeError } = await supabase
       .from('tournaments_referee')
-      .insert({
-        tournament_id: tournament.id,
-        player_id: refereePlayer.id,
-      });
+      .insert([
+        {
+          tournament_id: tournament.id,
+          player_id: hostPlayer.id,
+        },
+        {
+          tournament_id: tournament.id,
+          player_id: refereePlayer.id,
+        },
+      ]);
 
     if (refereeError) {
-      throw new Error(`Failed to add referee: ${refereeError.message}`);
+      throw new Error(`Failed to add referees: ${refereeError.message}`);
     }
 
-    console.log(`✅ Added referee (Player ID: ${refereePlayer.id})\n`);
+    console.log(`✅ Added referees: Host (Player ID: ${hostPlayer.id}) and Referee (Player ID: ${refereePlayer.id})\n`);
 
     // Step 8: Create teams (6 teams from 12 players, excluding host and referee)
     console.log('👥 Creating teams...');
@@ -350,7 +356,7 @@ async function createGroupMensDoublesTournament() {
     console.log('═══════════════════════════════════════════════════════════');
     console.log(`Tournament ID: ${tournament.id}`);
     console.log(`Tournament Name: ${tournament.name}`);
-    console.log(`Host: ${hostPlayer.username || `Player ${hostPlayer.id}`} (ID: ${hostPlayer.id})`);
+    console.log(`Host: ${hostPlayer.username || `Player ${hostPlayer.id}`} (ID: ${hostPlayer.id}) - Also Referee`);
     console.log(`Referee: ${refereePlayer.username || `Player ${refereePlayer.id}`} (ID: ${refereePlayer.id})`);
     console.log(`Venue: ${venue.name} (ID: ${venue.id})`);
     console.log(`Teams Created: ${teams.length}`);

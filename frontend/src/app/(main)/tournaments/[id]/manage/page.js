@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -35,6 +35,7 @@ import {
   Trophy,
   ShieldAlert,
   LayoutGrid,
+  Eye,
 } from "lucide-react";
 import {
   ScrollablePage,
@@ -51,6 +52,7 @@ export default function TournamentManagePage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [isGroupManagerDialogOpen, setIsGroupManagerDialogOpen] = useState(false);
 
   const { data: tournament, isLoading } = useQuery({
     queryKey: ["tournament", params.id],
@@ -69,8 +71,6 @@ export default function TournamentManagePage() {
     isGroupKnockout,
     startNextRound: startEngineRound,
     isStartingRound: isStartingEngineRound,
-    nextAction,
-    refetchAll: refetchEngine,
   } = useTournamentEngine(params.id);
 
   const { data: searchResults, isLoading: isSearching } = useQuery({
@@ -166,6 +166,91 @@ export default function TournamentManagePage() {
       toast.error(errorMessage);
     },
   });
+
+  // Parse tournament metadata (safe to do even if tournament is null)
+  const tournamentMetadata = useMemo(() => {
+    if (!tournament?.metadata) return {};
+    if (typeof tournament.metadata === 'string') {
+      try {
+        return JSON.parse(tournament.metadata);
+      } catch (e) {
+        return {};
+      }
+    }
+    return tournament.metadata;
+  }, [tournament?.metadata]);
+
+  const tournamentFormat = tournamentMetadata?.format || 'swiss';
+  const isGroupKnockoutFormat = tournamentFormat === 'group_knockout' || isGroupKnockout;
+
+  // Compute next round button data (must be before conditional returns)
+  const nextRoundButtonData = useMemo(() => {
+    // For Swiss format
+    if (!isGroupKnockoutFormat && roundStatus?.isCurrentRoundComplete && roundStatus?.canStartNextRound) {
+      const nextRoundLabel = roundStatus?.nextRound 
+        ? (/^\d+$/.test(roundStatus?.nextRound) 
+            ? `Round ${roundStatus.nextRound}`
+            : roundStatus.nextRound)
+        : null;
+      
+      return {
+        show: true,
+        format: 'swiss',
+        currentRound: roundStatus?.currentRound,
+        nextRound: nextRoundLabel,
+        description: nextRoundLabel 
+          ? `Ready to start ${/^\d+$/.test(roundStatus?.nextRound) ? `Round ${roundStatus.nextRound}` : roundStatus.nextRound}`
+          : "Ready to start next round",
+        buttonText: nextRoundLabel || "Start Next Round",
+      };
+    }
+    
+    // For Group+Knockout format
+    if (isGroupKnockoutFormat && engineInfo?.current_round > 0 && engineMatches) {
+      const currentRoundMatches = engineMatches.filter(m => 
+        m.round?.includes(`R${engineInfo.current_round}`) && m.status !== 'bye'
+      ) || [];
+      const allMatchesComplete = currentRoundMatches.length > 0 && 
+        currentRoundMatches.every(m => m.status === 'completed');
+      
+      const isTournamentComplete = engineInfo.stage === 'complete';
+      const hasNextRound = !isTournamentComplete;
+      
+      if (allMatchesComplete && hasNextRound) {
+        let nextRoundLabel;
+        if (engineInfo.stage === 'group_stage' && 
+            engineInfo.current_round < (engineInfo.total_group_rounds || 0)) {
+          nextRoundLabel = `Round ${engineInfo.current_round + 1}`;
+        } else if (engineInfo.stage === 'group_stage' && 
+                   engineInfo.current_round >= (engineInfo.total_group_rounds || 0)) {
+          nextRoundLabel = "Knockout Stage";
+        } else {
+          nextRoundLabel = "Next Round";
+        }
+        
+        return {
+          show: true,
+          format: 'group_knockout',
+          currentRound: engineInfo.current_round,
+          nextRound: nextRoundLabel,
+          description: `Ready to start ${nextRoundLabel}`,
+          buttonText: `Start ${nextRoundLabel}`,
+        };
+      }
+    }
+    
+    return { show: false };
+  }, [
+    isGroupKnockoutFormat,
+    roundStatus?.isCurrentRoundComplete,
+    roundStatus?.canStartNextRound,
+    roundStatus?.currentRound,
+    roundStatus?.nextRound,
+    engineInfo?.current_round,
+    engineInfo?.stage,
+    engineInfo?.total_group_rounds,
+    engineMatches,
+  ]);
 
   if (isLoading || isLoadingUser) {
     return (
@@ -271,18 +356,6 @@ export default function TournamentManagePage() {
   }
 
   const referees = tournament.referee || [];
-  
-  // Check tournament format from metadata (handle both string and object)
-  let tournamentMetadata = tournament.metadata;
-  if (typeof tournamentMetadata === 'string') {
-    try {
-      tournamentMetadata = JSON.parse(tournamentMetadata);
-    } catch (e) {
-      tournamentMetadata = {};
-    }
-  }
-  const tournamentFormat = tournamentMetadata?.format || 'swiss';
-  const isGroupKnockoutFormat = tournamentFormat === 'group_knockout' || isGroupKnockout;
 
   return (
     <ScrollablePage className="bg-background">
@@ -303,6 +376,51 @@ export default function TournamentManagePage() {
         <div className="absolute top-0 inset-x-0 h-48 bg-linear-to-b from-brand-blue/10 to-transparent skew-y-3 origin-top-left scale-110 pointer-events-none -z-10" />
         <div className="absolute top-0 right-0 size-64 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none -z-10" />
 
+        {/* Next Round Button - Show when current round is complete */}
+        {nextRoundButtonData.show && (
+          <div className="px-4 pt-4">
+            <Card className="p-4 border-primary/30 bg-primary/5 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <Play className="size-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-black text-sm uppercase tracking-tight">
+                      {nextRoundButtonData.format === 'swiss' 
+                        ? "Round Complete" 
+                        : `Round ${nextRoundButtonData.currentRound} Complete`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {nextRoundButtonData.description}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (nextRoundButtonData.format === 'swiss') {
+                      generateRoundMutation.mutate();
+                    } else {
+                      startEngineRound();
+                    }
+                  }}
+                  disabled={
+                    nextRoundButtonData.format === 'swiss' 
+                      ? generateRoundMutation.isPending 
+                      : isStartingEngineRound
+                  }
+                  className="gap-2 font-bold rounded-xl px-6"
+                >
+                  <Play className="size-4" />
+                  {nextRoundButtonData.format === 'swiss' 
+                    ? (generateRoundMutation.isPending ? "Starting..." : nextRoundButtonData.buttonText)
+                    : (isStartingEngineRound ? "Starting..." : nextRoundButtonData.buttonText)}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
         {/* Tournament Info */}
         <div className="px-4 pt-4">
           <div className="flex items-center gap-2 mb-2">
@@ -320,8 +438,34 @@ export default function TournamentManagePage() {
           )}
         </div>
 
-        {/* Group Manager Section (for Group+Knockout format) */}
-        {isGroupKnockoutFormat && (
+ {/* Group+Knockout - Prompt to Start Round */}
+ {isGroupKnockoutFormat && engineInfo?.groups && engineInfo?.current_round === 0 && (
+          <div className="px-4">
+            <Card className="p-6 border-dashed border-2 border-border/50 bg-muted/5 rounded-2xl">
+              <div className="text-center py-4">
+                <div className="bg-primary/10 p-4 rounded-2xl w-fit mx-auto mb-4">
+                  <Trophy className="size-8 text-primary" />
+                </div>
+                <p className="text-base font-black uppercase tracking-tight mb-1">Groups are ready!</p>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Start the first round to create matches and assign referees
+                </p>
+                <Button
+                  onClick={() => startEngineRound()}
+                  disabled={isStartingEngineRound}
+                  className="gap-2 font-bold rounded-xl px-6"
+                >
+                  <Play className="size-4" />
+                  {isStartingEngineRound ? "Starting..." : "Start First Round"}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+
+        {/* Group Manager Section (for Group+Knockout format) - Show directly in Card if round hasn't started */}
+        {isGroupKnockoutFormat && (!engineInfo || engineInfo?.current_round === 0) && (
           <div className="px-4">
             <Card className="p-5 border-border/50 bg-background/80 backdrop-blur-sm rounded-2xl shadow-sm">
               <div className="flex items-center gap-2 mb-4">
@@ -331,29 +475,6 @@ export default function TournamentManagePage() {
                 <h3 className="font-black text-sm uppercase tracking-wider text-foreground">Group Management</h3>
               </div>
               <GroupManager tournamentId={params.id} />
-              
-              {/* Next Round Button for Group+Knockout format */}
-              {engineInfo?.groups && nextAction?.canProceed && (
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold">{nextAction?.action}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Stage: {engineInfo?.stage?.replace('_', ' ')}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => startEngineRound()}
-                      disabled={isStartingEngineRound}
-                      size="sm"
-                      className="gap-2 font-bold rounded-xl"
-                    >
-                      <Play className="size-4" />
-                      {isStartingEngineRound ? "Starting..." : "Start Round"}
-                    </Button>
-                  </div>
-                </div>
-              )}
             </Card>
           </div>
         )}
@@ -520,31 +641,6 @@ export default function TournamentManagePage() {
                   )}
                 </div>
               )}
-            </Card>
-          </div>
-        )}
-
-        {/* Group+Knockout - Prompt to Start Round */}
-        {isGroupKnockoutFormat && engineInfo?.groups && engineInfo?.current_round === 0 && (
-          <div className="px-4">
-            <Card className="p-6 border-dashed border-2 border-border/50 bg-muted/5 rounded-2xl">
-              <div className="text-center py-4">
-                <div className="bg-primary/10 p-4 rounded-2xl w-fit mx-auto mb-4">
-                  <Trophy className="size-8 text-primary" />
-                </div>
-                <p className="text-base font-black uppercase tracking-tight mb-1">Groups are ready!</p>
-                <p className="text-sm text-muted-foreground mb-5">
-                  Start the first round to create matches and assign referees
-                </p>
-                <Button
-                  onClick={() => startEngineRound()}
-                  disabled={isStartingEngineRound}
-                  className="gap-2 font-bold rounded-xl px-6"
-                >
-                  <Play className="size-4" />
-                  {isStartingEngineRound ? "Starting..." : "Start First Round"}
-                </Button>
-              </div>
             </Card>
           </div>
         )}
@@ -821,6 +917,44 @@ export default function TournamentManagePage() {
             </div>
           )}
         </div>
+
+        {/* Group Manager Section (for Group+Knockout format) - Show in Dialog if round 1 has started */}
+        {isGroupKnockoutFormat && engineInfo?.current_round > 0 && (
+          <div className="px-4">
+            <Dialog open={isGroupManagerDialogOpen} onOpenChange={setIsGroupManagerDialogOpen}>
+              <DialogTrigger asChild>
+                <Card className="p-5 border-border/50 bg-background/80 backdrop-blur-sm rounded-2xl shadow-sm cursor-pointer hover:bg-background/90 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <LayoutGrid className="size-4 text-primary" />
+                      </div>
+                      <h3 className="font-black text-sm uppercase tracking-wider text-foreground">Group Management</h3>
+                    </div>
+                    <Button variant="ghost" size="sm" className="gap-2 font-bold rounded-xl">
+                      <Eye className="size-4" />
+                      View Groups
+                    </Button>
+                  </div>
+                </Card>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2">
+                    <LayoutGrid className="size-5 text-primary" />
+                    Group Management
+                  </DialogTitle>
+                  <DialogDescription>
+                    View and manage tournament groups
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <GroupManager tournamentId={params.id} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
 
         {/* Current Round Matches Section */}
         {roundStatus?.currentRound && (

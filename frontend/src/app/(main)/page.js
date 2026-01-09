@@ -123,6 +123,30 @@ export default function ProfilePage() {
     return partner?.name || partner?.username || "Partner";
   };
 
+  // Helper to get teammate and opponents from match
+  const getMatchTeams = (match) => {
+    if (!match.players || match.players.length === 0) {
+      return { teammate: null, opponents: [] };
+    }
+    
+    // Find current user in players
+    const me = match.players.find(p => p.username === username);
+    if (!me) {
+      return { teammate: null, opponents: [] };
+    }
+    
+    // Find teammate (same team, different player)
+    const teammate = match.players.find(p => p.team === me.team && p.username !== username);
+    
+    // Find opponents (different team)
+    const opponents = match.players.filter(p => p.team !== me.team);
+    
+    return {
+      teammate: teammate ? (teammate.name || teammate.username) : null,
+      opponents: opponents.map(p => p.name || p.username)
+    };
+  };
+
   // Get all referee tournaments
   const allRefereeTournaments = refereeData?.tournaments || [];
 
@@ -262,6 +286,7 @@ export default function ProfilePage() {
                   {liveMatches.map((match) => {
                     const isInProgress = match.status === "in_progress";
                     const isScheduled = match.status === "scheduled";
+                    const { teammate, opponents } = getMatchTeams(match);
                     
                     return (
                     <Card key={match.match_id} className={`py-0 gap-0 overflow-hidden border-2 ${isInProgress ? 'border-primary/20 shadow-lg' : 'border-border/50'} shadow-sm`}>
@@ -286,33 +311,103 @@ export default function ProfilePage() {
                         ) : null}
                       </div>
 
-                      {/* Score Display */}
+                      {/* Teams Info */}
                       <div className="p-4 bg-linear-to-b from-background to-muted/20">
-                        <div className="flex items-center justify-between">
-                          {/* Team A */}
-                          <div className="flex flex-col items-center gap-2 flex-1">
-                            <div className="size-10 rounded-full bg-brand-blue/10 flex items-center justify-center border-2 border-brand-blue/20 text-brand-blue font-black text-sm">
-                              A
+                        {/* Teams Display - Side by Side */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          {/* Your Team */}
+                          <div className="flex flex-col gap-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                              Your Team
                             </div>
-                            <span className="text-2xl font-black tabular-nums">{match.scores?.teamA || 0}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="size-9 rounded-full bg-linear-to-br from-brand-blue/20 to-brand-blue/10 flex items-center justify-center border-2 border-brand-blue/30 text-brand-blue font-black text-xs shadow-sm">
+                                {username?.charAt(0).toUpperCase() || "Y"}
+                              </div>
+                              {teammate ? (
+                                <>
+                                  <div className="size-9 rounded-full bg-linear-to-br from-brand-blue/20 to-brand-blue/10 flex items-center justify-center border-2 border-brand-blue/30 text-brand-blue font-black text-xs shadow-sm">
+                                    {teammate.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col min-w-0 flex-1">
+                                    <span className="text-xs font-bold text-foreground truncate">{username}</span>
+                                    <span className="text-xs font-medium text-muted-foreground truncate">{teammate}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className="text-xs font-bold text-foreground truncate">{username}</span>
+                                  <span className="text-[10px] font-medium text-muted-foreground">Solo</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          {/* VS */}
-                          <div className="text-xs font-bold text-muted-foreground/50 italic px-4">VS</div>
-
-                          {/* Team B */}
-                          <div className="flex flex-col items-center gap-2 flex-1">
-                            <span className="text-2xl font-black tabular-nums">{match.scores?.teamB || 0}</span>
-                            <div className="size-10 rounded-full bg-brand-green/10 flex items-center justify-center border-2 border-brand-green/20 text-brand-green font-black text-sm">
-                              B
+                          {/* Opponents */}
+                          {opponents.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                                Opponents
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {opponents.slice(0, 2).map((opponent, idx) => (
+                                  <div key={idx} className="size-9 rounded-full bg-linear-to-br from-brand-green/20 to-brand-green/10 flex items-center justify-center border-2 border-brand-green/30 text-brand-green font-black text-xs shadow-sm">
+                                    {opponent.charAt(0).toUpperCase()}
+                                  </div>
+                                ))}
+                                {opponents.length > 2 && (
+                                  <div className="size-9 rounded-full bg-muted flex items-center justify-center border-2 border-border text-muted-foreground font-black text-[10px] shadow-sm">
+                                    +{opponents.length - 2}
+                                  </div>
+                                )}
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  {opponents.slice(0, 2).map((opponent, idx) => (
+                                    <span key={idx} className={`text-xs font-medium text-foreground truncate ${idx === 0 ? 'font-bold' : ''}`}>
+                                      {opponent}
+                                    </span>
+                                  ))}
+                                  {opponents.length > 2 && (
+                                    <span className="text-[10px] font-medium text-muted-foreground">
+                                      +{opponents.length - 2} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
 
+                        {/* Score Display (only show if match is in progress) */}
+                        {isInProgress && (
+                          <div className="pt-4 border-t border-border/50">
+                            <div className="flex items-center justify-between">
+                              {/* Team A */}
+                              <div className="flex flex-col items-center gap-2 flex-1">
+                                <div className="size-12 rounded-full bg-linear-to-br from-brand-blue/20 to-brand-blue/10 flex items-center justify-center border-2 border-brand-blue/30 text-brand-blue font-black text-base shadow-md">
+                                  A
+                                </div>
+                                <span className="text-3xl font-black tabular-nums">{match.scores?.teamA || 0}</span>
+                              </div>
+
+                              {/* VS */}
+                              <div className="text-sm font-bold text-muted-foreground/50 italic px-4">VS</div>
+
+                              {/* Team B */}
+                              <div className="flex flex-col items-center gap-2 flex-1">
+                                <span className="text-3xl font-black tabular-nums">{match.scores?.teamB || 0}</span>
+                                <div className="size-12 rounded-full bg-linear-to-br from-brand-green/20 to-brand-green/10 flex items-center justify-center border-2 border-brand-green/30 text-brand-green font-black text-base shadow-md">
+                                  B
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Court Info */}
                         {match.court && (
-                          <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="size-3" />
-                            <span>Court {match.court}</span>
+                          <div className={`flex items-center justify-center gap-1.5 text-xs text-muted-foreground ${isInProgress ? 'mt-4 pt-4 border-t border-border/50' : 'mt-2'}`}>
+                            <MapPin className="size-3.5" />
+                            <span className="font-medium">Court {match.court}</span>
                           </div>
                         )}
                       </div>

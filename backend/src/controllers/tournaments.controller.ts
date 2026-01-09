@@ -1367,6 +1367,30 @@ export async function createTournament(c: Context<AuthContext>) {
       throw new HTTPException(500, { message: tournamentError.message });
     }
 
+    // Automatically add the host as a referee
+    // Check if host is already a referee (shouldn't happen for new tournament, but defensive check)
+    const { data: existingReferee } = await supabase
+      .from("tournaments_referee")
+      .select("id")
+      .eq("tournament_id", tournament.id)
+      .eq("player_id", playerId)
+      .single();
+
+    if (!existingReferee) {
+      const { error: refereeError } = await supabase
+        .from("tournaments_referee")
+        .insert({
+          tournament_id: tournament.id,
+          player_id: playerId,
+        });
+
+      if (refereeError) {
+        // Log the error but don't fail the tournament creation
+        // The host can still be added as referee later if needed
+        console.error("Failed to add host as referee:", refereeError.message);
+      }
+    }
+
     return c.json({ data: { tournament } }, 201);
   } catch (error) {
     if (error instanceof HTTPException) {
