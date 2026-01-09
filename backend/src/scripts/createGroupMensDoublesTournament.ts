@@ -122,7 +122,7 @@ async function createGroupMensDoublesTournament() {
         const tournamentId = existingTournament.id;
         
         // Delete related data in order (due to foreign key constraints)
-        // 1. Delete scores first (if matches exist)
+        // 1. Fetch matches first
         const { data: matches } = await supabase
           .from('matches')
           .select('id')
@@ -130,10 +130,21 @@ async function createGroupMensDoublesTournament() {
         
         if (matches && matches.length > 0) {
           const matchIds = matches.map(m => m.id);
-          await supabase.from('scores').delete().in('match_id', matchIds);
+          
+          // 1a. Delete scores (references matches)
+          const { error: scoresError } = await supabase.from('scores').delete().in('match_id', matchIds);
+          if (scoresError) {
+            throw new Error(`Failed to delete scores: ${scoresError.message}`);
+          }
+          
+          // 1b. Delete rating_history (references matches)
+          const { error: ratingHistoryError } = await supabase.from('rating_history').delete().in('match_id', matchIds);
+          if (ratingHistoryError) {
+            throw new Error(`Failed to delete rating_history: ${ratingHistoryError.message}`);
+          }
         }
         
-        // 2. Delete pairings and pairing_teams
+        // 2. Delete pairings and pairing_teams (pairings reference matches)
         const { data: pairings } = await supabase
           .from('pairings')
           .select('id')
@@ -141,13 +152,23 @@ async function createGroupMensDoublesTournament() {
         
         if (pairings && pairings.length > 0) {
           const pairingIds = pairings.map(p => p.id);
-          await supabase.from('pairing_teams').delete().in('pairing_id', pairingIds);
-          await supabase.from('pairings').delete().in('id', pairingIds);
+          const { error: pairingTeamsError } = await supabase.from('pairing_teams').delete().in('pairing_id', pairingIds);
+          if (pairingTeamsError) {
+            throw new Error(`Failed to delete pairing_teams: ${pairingTeamsError.message}`);
+          }
+          
+          const { error: pairingsError } = await supabase.from('pairings').delete().in('id', pairingIds);
+          if (pairingsError) {
+            throw new Error(`Failed to delete pairings: ${pairingsError.message}`);
+          }
         }
         
-        // 3. Delete matches
+        // 3. Delete matches (now safe since all references are removed)
         if (matches && matches.length > 0) {
-          await supabase.from('matches').delete().eq('tournament_id', tournamentId);
+          const { error: matchesError } = await supabase.from('matches').delete().eq('tournament_id', tournamentId);
+          if (matchesError) {
+            throw new Error(`Failed to delete matches: ${matchesError.message}`);
+          }
         }
         
         // 4. Get teams associated with this tournament through tournament_invites (BEFORE deleting invites)
