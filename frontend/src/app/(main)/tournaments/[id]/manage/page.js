@@ -51,7 +51,6 @@ export default function TournamentManagePage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   const { data: tournament, isLoading } = useQuery({
     queryKey: ["tournament", params.id],
@@ -90,7 +89,6 @@ export default function TournamentManagePage() {
       toast.success("Referee added successfully!");
       setIsSearchDialogOpen(false);
       setSearchQuery("");
-      setSelectedPlayer(null);
       queryClient.invalidateQueries({ queryKey: ["tournament", params.id] });
     },
     onError: (error) => {
@@ -725,7 +723,6 @@ export default function TournamentManagePage() {
                             key={player.id}
                             className="p-3 cursor-pointer hover:bg-muted/50 transition-colors border-border/50 rounded-xl"
                             onClick={() => {
-                              setSelectedPlayer(player);
                               addRefereeMutation.mutate(player.id);
                             }}
                           >

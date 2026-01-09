@@ -44,6 +44,15 @@ export default function ProfilePage() {
     },
   });
 
+  // Fetch registered tournaments (tournaments user is registered in)
+  const { data: registeredData, isLoading: isLoadingRegistered } = useQuery({
+    queryKey: ["registered-tournaments"],
+    queryFn: async () => {
+      const response = await tournamentsApi.getRegistered();
+      return response.data.data;
+    },
+  });
+
   if (isLoading) {
     return (
       <ScrollablePage className="bg-background/20">
@@ -83,8 +92,25 @@ export default function ProfilePage() {
   const { name, username, aura, age, gender, photo_url, tournaments } = userData;
 
   // Filter matches by status (matches user is playing in)
-  const liveMatches = tournaments?.filter((t) => t.status === "live") || [];
-  const pastMatches = tournaments?.filter((t) => t.status !== "live") || [];
+  // Live matches: only "scheduled" and "in_progress" statuses
+  const liveMatches = tournaments?.filter((t) => 
+    t.status === "scheduled" || t.status === "in_progress"
+  ) || [];
+  const pastMatches = tournaments?.filter((t) => 
+    t.status !== "scheduled" && t.status !== "in_progress"
+  ) || [];
+
+  // Get registered tournaments and filter for scheduled/upcoming/live ones
+  const allRegisteredTournaments = registeredData?.tournaments || [];
+  const now = new Date();
+  const scheduledTournaments = allRegisteredTournaments.filter((tournament) => {
+    const startDate = tournament.start_date ? new Date(tournament.start_date) : null;
+    const endDate = tournament.end_date ? new Date(tournament.end_date) : null;
+    
+    // Show tournaments that haven't ended yet (upcoming or live)
+    if (endDate && now > endDate) return false;
+    return true;
+  });
 
   // Helper to get partner name from match
   const getPartnerName = (match) => {
@@ -231,10 +257,14 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="size-2 rounded-full bg-red-500 animate-pulse" />
-                    <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Live Matches</h4>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Upcoming Matches</h4>
                   </div>
-                  {liveMatches.map((match) => (
-                    <Card key={match.match_id} className="overflow-hidden border-2 border-primary/20 shadow-lg">
+                  {liveMatches.map((match) => {
+                    const isInProgress = match.status === "in_progress";
+                    const isScheduled = match.status === "scheduled";
+                    
+                    return (
+                    <Card key={match.match_id} className={`py-0 gap-0 overflow-hidden border-2 ${isInProgress ? 'border-primary/20 shadow-lg' : 'border-border/50'} shadow-sm`}>
                       {/* Header */}
                       <div className="bg-primary/5 p-3 flex justify-between items-center border-b border-primary/10">
                         <div className="flex flex-col gap-0.5">
@@ -245,9 +275,15 @@ export default function ProfilePage() {
                             {match.round}
                           </div>
                         </div>
-                        <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
-                          LIVE
-                        </div>
+                        {isInProgress ? (
+                          <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
+                            LIVE
+                          </div>
+                        ) : isScheduled ? (
+                          <div className="bg-blue-500/10 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded">
+                            SCHEDULED
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Score Display */}
@@ -303,17 +339,111 @@ export default function ProfilePage() {
                         </Button>
                       </div>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
-              ) : (
+              ) : scheduledTournaments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 border-2 border-dashed border-border/50 rounded-2xl bg-muted/5">
                   <div className="bg-muted/30 p-4 rounded-full">
                     <Trophy className="size-8 text-muted-foreground/30" />
                   </div>
-                  <p className="text-muted-foreground text-sm font-medium">No live matches.</p>
-                  <Button variant="outline" size="sm" onClick={() => router.push('/')}>Find a Tournament</Button>
+                  <p className="text-muted-foreground text-sm font-medium">No scheduled tournaments or matches in progress.</p>
+                  <Button variant="outline" size="sm" onClick={() => router.push('/tournaments')}>Find a Tournament</Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 border-2 border-dashed border-border/50 rounded-2xl bg-muted/5">
+                  <p className="text-muted-foreground text-sm font-medium">No matches in progress.</p>
                 </div>
               )}
+
+              {/* Scheduled Tournaments */}
+              {isLoadingRegistered ? (
+                <div className="space-y-3">
+                  <div className="h-32 w-full bg-muted/40 animate-pulse rounded-xl" />
+                </div>
+              ) : scheduledTournaments.length > 0 ? (
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CalendarDays className="size-4 text-primary" />
+                    <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Scheduled Tournaments</h4>
+                  </div>
+                  {scheduledTournaments.map((tournament) => {
+                    const startDate = tournament.start_date ? new Date(tournament.start_date) : null;
+                    const endDate = tournament.end_date ? new Date(tournament.end_date) : null;
+                    let status = 'upcoming';
+                    let statusLabel = 'Upcoming';
+                    let statusColor = 'bg-blue-500/10 text-blue-600';
+                    
+                    if (startDate && endDate) {
+                      if (now >= startDate && now <= endDate) {
+                        status = 'live';
+                        statusLabel = 'Live';
+                        statusColor = 'bg-red-500/10 text-red-600 animate-pulse';
+                      }
+                    }
+
+                    return (
+                      <Card
+                        key={tournament.id}
+                        onClick={() => router.push(`/tournaments/${tournament.id}`)}
+                        className="cursor-pointer overflow-hidden border-border/50 hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-primary/10"
+                      >
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-base font-black tracking-tight uppercase italic line-clamp-1 text-foreground mb-1">
+                                {tournament.name}
+                              </h3>
+                              {tournament.venue?.name && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MapPin className="size-3" />
+                                  <span className="line-clamp-1">{tournament.venue.name}</span>
+                                </div>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase shrink-0 ${statusColor}`}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          {tournament.start_date && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                              <CalendarDays className="size-3.5" />
+                              <span>
+                                {new Date(tournament.start_date).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant={status === 'live' ? 'default' : 'outline'}
+                            className="w-full gap-2 text-xs font-bold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/tournaments/${tournament.id}`);
+                            }}
+                          >
+                            {status === 'live' ? (
+                              <>
+                                <Activity className="size-3.5" />
+                                View Tournament
+                              </>
+                            ) : (
+                              <>
+                                View Tournament
+                                <ChevronRight className="size-3.5" />
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : null}
             </TabsContent>
 
             {/* Past Matches Tab */}
